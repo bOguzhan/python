@@ -122,18 +122,21 @@ class Client:
         await self._send_to_server(punch_msg)
 
     async def handle_punch(self, message: dict):
-        """Handle punch message for NAT traversal."""
+        """Handle punch message for NAT traversal (TCP)."""
         peer_id = message.get('peer_id')
         port = message.get('port', 25565)  # Default to Java application port if not specified
         if not peer_id:
             return
 
-        # Implement NAT punch logic here
-        logger.info(f"Received punch request from {peer_id} on port {port}")
-        # Try to establish P2P connection
+        logger.info(f"Received punch request from {peer_id} on port {port} (TCP)")
         peer_host = peer_id.split(':')[0]  # Extract peer's IP address
-        from .nat import establish_p2p_connection
-        sock = await establish_p2p_connection('0.0.0.0', peer_host, port)
+        from .nat import tcp_hole_punch
+        # Use the same port for local and remote for TCP hole punching
+        sock = await tcp_hole_punch('0.0.0.0', port, peer_host, port)
+        if sock:
+            logger.info(f"TCP hole punch successful: {sock.getsockname()} <-> {sock.getpeername()}")
+        else:
+            logger.warning("TCP hole punch failed after all retries")
 
     async def _send_to_server(self, message: dict):
         """Send a message to the server."""
