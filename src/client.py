@@ -70,6 +70,13 @@ class Client:
             if self.peer_id:
                 ip, port = self.peer_id.split(":")
                 self.listen_port = int(port)
+                # If running in client-app mode, start relay locally
+                import sys
+                if hasattr(self, 'relay_target_host') and hasattr(self, 'relay_target_port') and self.relay_target_host and self.relay_target_port:
+                    from src.tcp_relay import TCPRelayServer
+                    relay = TCPRelayServer('0.0.0.0', self.listen_port, self.relay_target_host, self.relay_target_port)
+                    logger.info(f"Starting local relay on 0.0.0.0:{self.listen_port} -> {self.relay_target_host}:{self.relay_target_port}")
+                    asyncio.create_task(relay.start())
         else:
             raise Exception("Failed to register with server")
 
