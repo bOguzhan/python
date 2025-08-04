@@ -7,6 +7,7 @@ class Peer:
         self.reader = reader
         self.writer = writer
         self.addr = writer.get_extra_info('peername')
+        self.public_addr = self.addr  # Store public IP/port as seen by server
 
     async def send(self, message: dict):
         """Send a message to the peer."""

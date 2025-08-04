@@ -32,6 +32,7 @@ class Server:
 
         peer = Peer(reader, writer)
         peer_id = f"{peer_addr[0]}:{peer_addr[1]}"
+        peer.public_addr = peer_addr  # Store public address on the peer object
         self.peers[peer_id] = peer
 
         try:
@@ -69,11 +70,15 @@ class Server:
     async def handle_register(self, peer_id: str, message: dict):
         """Handle peer registration."""
         logger.info(f"Registered peer {peer_id}")
+        # Store public address for this peer
+        peer = self.peers[peer_id]
+        peer.public_addr = peer.writer.get_extra_info('peername')
         response = {
             'type': 'register_ack',
-            'peer_id': peer_id
+            'peer_id': peer_id,
+            'public_addr': peer.public_addr
         }
-        await self.peers[peer_id].send(response)
+        await peer.send(response)
 
     async def handle_connect_request(self, peer_id: str, message: dict):
         """Handle connection requests between peers."""
@@ -85,14 +90,16 @@ class Server:
             })
             return
 
-        # Notify both peers about the connection request
+        # Notify both peers about the connection request, including public IP/port
         await self.peers[peer_id].send({
             'type': 'connect_ready',
-            'target_id': target_id
+            'target_id': target_id,
+            'target_addr': self.peers[target_id].public_addr
         })
         await self.peers[target_id].send({
             'type': 'connect_ready',
-            'target_id': peer_id
+            'target_id': peer_id,
+            'target_addr': self.peers[peer_id].public_addr
         })
 
     async def handle_punch_request(self, peer_id: str, message: dict):

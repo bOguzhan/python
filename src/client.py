@@ -110,29 +110,34 @@ class Client:
     async def handle_connect_ready(self, message: dict):
         """Handle connection ready message."""
         target_id = message.get('target_id')
-        if not target_id:
+        target_addr = message.get('target_addr')
+        if not target_id or not target_addr:
+            logger.error("Missing target_id or target_addr in connect_ready message")
             return
 
-        # Start NAT punch process
+        peer_ip, peer_port = target_addr
+        logger.info(f"Received peer public address: {peer_ip}:{peer_port}")
+        # Start NAT punch process using public IP/port
         punch_msg = {
             'type': 'punch',
             'target_id': target_id,
-            'port': 25565  # Java application port
+            'port': peer_port,
+            'target_addr': target_addr
         }
         await self._send_to_server(punch_msg)
 
     async def handle_punch(self, message: dict):
         """Handle punch message for NAT traversal (TCP)."""
         peer_id = message.get('peer_id')
-        port = message.get('port', 25565)  # Default to Java application port if not specified
-        if not peer_id:
+        port = message.get('port', 25565)
+        target_addr = message.get('target_addr')
+        if not peer_id or not target_addr:
+            logger.error("Missing peer_id or target_addr in punch message")
             return
-
-        logger.info(f"Received punch request from {peer_id} on port {port} (TCP)")
-        peer_host = peer_id.split(':')[0]  # Extract peer's IP address
+        peer_ip, peer_port = target_addr
+        logger.info(f"Received punch request from {peer_id} at {peer_ip}:{peer_port} (TCP)")
         from .nat import tcp_hole_punch
-        # Use the same port for local and remote for TCP hole punching
-        sock = await tcp_hole_punch('0.0.0.0', port, peer_host, port)
+        sock = await tcp_hole_punch('0.0.0.0', port, peer_ip, peer_port)
         if sock:
             logger.info(f"TCP hole punch successful: {sock.getsockname()} <-> {sock.getpeername()}")
         else:
