@@ -15,6 +15,9 @@ class Client:
         self.reader: Optional[asyncio.StreamReader] = None
         self.writer: Optional[asyncio.StreamWriter] = None
         self.listen_port: Optional[int] = None
+        self.relay_port: Optional[int] = None
+        self.relay_target_host: Optional[str] = None
+        self.relay_target_port: Optional[int] = None
 
     async def start(self):
         """Start the client and connect to the server."""
@@ -27,6 +30,11 @@ class Client:
             # Register with the server
             await self.register()
 
+            # If running in client-app mode, request relay
+            import sys
+            if hasattr(self, 'relay_port') and hasattr(self, 'relay_target_host') and hasattr(self, 'relay_target_port'):
+                await self.request_relay()
+
             # Start message handling loop
             await self.message_loop()
 
@@ -36,6 +44,17 @@ class Client:
             if self.writer:
                 self.writer.close()
                 await self.writer.wait_closed()
+
+    async def request_relay(self):
+        """Send a relay request to the server."""
+        relay_msg = {
+            'type': 'relay_request',
+            'relay_port': self.relay_port,
+            'relay_target_host': self.relay_target_host,
+            'relay_target_port': self.relay_target_port
+        }
+        logger.info(f"Requesting relay: {relay_msg}")
+        await self._send_to_server(relay_msg)
 
     async def register(self):
         """Register with the server."""
@@ -48,8 +67,9 @@ class Client:
         if response and response.get('type') == 'register_ack':
             self.peer_id = response.get('peer_id')
             logger.info(f"Registered with server, assigned ID: {self.peer_id}")
-            ip, port = self.peer_id.split(":")
-            self.listen_port = int(port)
+            if self.peer_id:
+                ip, port = self.peer_id.split(":")
+                self.listen_port = int(port)
         else:
             raise Exception("Failed to register with server")
 

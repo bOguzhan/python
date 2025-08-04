@@ -66,6 +66,8 @@ class Server:
             await self.handle_connect_request(peer_id, message)
         elif msg_type == 'punch':
             await self.handle_punch_request(peer_id, message)
+        elif msg_type == 'relay_request':
+            await self.handle_relay_request(peer_id, message)
 
     async def handle_register(self, peer_id: str, message: dict):
         """Handle peer registration."""
@@ -116,6 +118,20 @@ class Server:
             'target_addr': self.peers[peer_id].public_addr
         }
         await self.peers[target_id].send(punch_msg)
+
+    async def handle_relay_request(self, peer_id: str, message: dict):
+        """Handle relay request from client-app and start relay on peer's public port."""
+        relay_target_host = message.get('relay_target_host')
+        relay_target_port = message.get('relay_target_port')
+        peer = self.peers.get(peer_id)
+        if not peer or not relay_target_host or not relay_target_port:
+            logger.error(f"Relay request missing info: peer={peer}, target_host={relay_target_host}, target_port={relay_target_port}")
+            return
+        relay_port = peer.public_addr[1]  # Use the port the client connected from
+        logger.info(f"Starting relay on {self.host}:{relay_port} -> {relay_target_host}:{relay_target_port}")
+        from src.tcp_relay import TCPRelayServer
+        relay = TCPRelayServer(self.host, relay_port, relay_target_host, relay_target_port)
+        asyncio.create_task(relay.start())
 
     async def remove_peer(self, peer_id: str):
         """Remove a peer from the server."""
