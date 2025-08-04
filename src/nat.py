@@ -48,38 +48,6 @@ async def tcp_hole_punch(local_host: str, local_port: int, target_host: str, tar
     finally:
         server.close()
         await server.wait_closed()
-async def tcp_hole_punch(local_host: str, local_port: int, target_host: str, target_port: int, timeout: float = 5.0) -> Optional[socket.socket]:
-    """
-    Attempt TCP hole punching by simultaneously listening and connecting.
-    Returns the established socket if successful, else None.
-    """
-    loop = asyncio.get_event_loop()
-    server = await asyncio.start_server(lambda r, w: None, local_host, local_port)
-    server_addr = server.sockets[0].getsockname()
-    connect_task = loop.create_task(loop.create_connection(lambda: asyncio.Protocol(), target_host, target_port))
-    accept_task = loop.create_task(server.accept())
-    done, pending = await asyncio.wait([connect_task, accept_task], timeout=timeout, return_when=asyncio.FIRST_COMPLETED)
-    sock = None
-    for task in done:
-        try:
-            result = task.result()
-            if isinstance(result, tuple) and hasattr(result[1], 'get_extra_info'):
-                # Accepted connection
-                sock = result[1].get_extra_info('socket')
-            elif isinstance(result, tuple) and hasattr(result[0], 'get_extra_info'):
-                # Outgoing connection
-                sock = result[0].get_extra_info('socket')
-        except Exception as e:
-            logger.error(f"TCP hole punch error: {e}")
-    for task in pending:
-        task.cancel()
-    server.close()
-    await server.wait_closed()
-    if sock:
-        logger.info(f"TCP hole punch successful: {sock.getsockname()} <-> {sock.getpeername()}")
-        return sock
-    logger.warning("TCP hole punch failed after all retries")
-    return None
 """
 This module contains utilities for NAT traversal and hole punching.
 """
