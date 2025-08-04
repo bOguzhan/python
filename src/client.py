@@ -47,6 +47,10 @@ class Client:
         if response and response.get('type') == 'register_ack':
             self.peer_id = response.get('peer_id')
             logger.info(f"Registered with server, assigned ID: {self.peer_id}")
+            # Start background TCP server for hole punching
+            ip, port = self.peer_id.split(":")
+            port = int(port)
+            asyncio.create_task(self._background_tcp_server(port))
         else:
             raise Exception("Failed to register with server")
 
@@ -142,6 +146,13 @@ class Client:
             logger.info(f"TCP hole punch successful: {sock.getsockname()} <-> {sock.getpeername()}")
         else:
             logger.warning("TCP hole punch failed after all retries")
+
+    async def _background_tcp_server(self, port: int):
+        """Run a simple TCP server for incoming hole punch connections."""
+        server = await asyncio.start_server(lambda r, w: None, '0.0.0.0', port)
+        logger.info(f"Background TCP server listening on port {port} for hole punching.")
+        async with server:
+            await server.serve_forever()
 
     async def _send_to_server(self, message: dict):
         """Send a message to the server."""
