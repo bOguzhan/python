@@ -68,6 +68,8 @@ class Server:
             await self.handle_punch_request(peer_id, message)
         elif msg_type == 'relay_request':
             await self.handle_relay_request(peer_id, message)
+        elif msg_type == 'list_peers':
+            await self.handle_list_peers(peer_id)
 
     async def handle_register(self, peer_id: str, message: dict):
         """Handle peer registration."""
@@ -132,6 +134,11 @@ class Server:
         from src.tcp_relay import TCPRelayServer
         relay = TCPRelayServer(self.host, relay_port, relay_target_host, relay_target_port)
         asyncio.create_task(relay.start())
+
+    async def handle_list_peers(self, peer_id: str):
+        """Send the list of registered peer IDs to the requesting client."""
+        peer_list = list(self.peers.keys())
+        await self.peers[peer_id].send({'type': 'peer_list', 'peers': peer_list})
 
     async def remove_peer(self, peer_id: str):
         """Remove a peer from the server."""

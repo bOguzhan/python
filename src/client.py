@@ -104,13 +104,15 @@ class Client:
         while True:
             try:
                 command = await asyncio.get_event_loop().run_in_executor(
-                    None, input, "Enter command (connect <peer_id> or quit): "
+                    None, input, "Enter command (connect <peer_id>, list, or quit): "
                 )
                 
                 if command.startswith("connect "):
                     peer_id = command.split(" ", 1)[1].strip()
                     logger.info(f"Initiating connection to peer: {peer_id}")
                     await self.connect_to_peer(peer_id)
+                elif command == "list":
+                    await self._send_to_server({'type': 'list_peers'})
                 elif command == "quit":
                     logger.info("Shutting down...")
                     break
@@ -129,6 +131,8 @@ class Client:
             await self.handle_punch(message)
         elif msg_type == 'error':
             logger.error(f"Received error: {message.get('message')}")
+        elif msg_type == 'peer_list':
+            logger.info(f"Registered peers: {message.get('peers')}")
 
     async def handle_connect_ready(self, message: dict):
         """Handle connection ready message."""
