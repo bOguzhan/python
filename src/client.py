@@ -117,7 +117,7 @@ class Client:
         punch_msg = {
             'type': 'punch',
             'target_id': target_id,
-            'port': 30000  # Java application port
+            'port': 25565  # Java application port
         }
         await self._send_to_server(punch_msg)
 
