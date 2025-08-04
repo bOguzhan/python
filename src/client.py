@@ -61,6 +61,9 @@ class Client:
     async def message_loop(self):
         """Main message handling loop."""
         try:
+            # Start user input handling in the background
+            asyncio.create_task(self.handle_user_input())
+            
             while True:
                 if not self.reader:
                     break
@@ -72,6 +75,24 @@ class Client:
                 await self.handle_message(message)
         except Exception as e:
             logger.error(f"Error in message loop: {e}")
+
+    async def handle_user_input(self):
+        """Handle user commands from stdin."""
+        while True:
+            try:
+                command = await asyncio.get_event_loop().run_in_executor(
+                    None, input, "Enter command (connect <peer_id> or quit): "
+                )
+                
+                if command.startswith("connect "):
+                    peer_id = command.split(" ", 1)[1].strip()
+                    logger.info(f"Initiating connection to peer: {peer_id}")
+                    await self.connect_to_peer(peer_id)
+                elif command == "quit":
+                    logger.info("Shutting down...")
+                    break
+            except Exception as e:
+                logger.error(f"Error handling command: {e}")
 
     async def handle_message(self, message: dict):
         """Handle incoming messages."""
@@ -96,7 +117,7 @@ class Client:
         punch_msg = {
             'type': 'punch',
             'target_id': target_id,
-            'port': 0  # Use dynamic port
+            'port': 30000  # Java application port
         }
         await self._send_to_server(punch_msg)
 
