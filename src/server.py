@@ -108,11 +108,12 @@ class Server:
         if not target_id or target_id not in self.peers:
             return
 
-        # Forward punch request to target peer
+        # Forward punch request to target peer, including peer_id and target_addr
         punch_msg = {
             'type': 'punch',
             'peer_id': peer_id,
-            'port': message.get('port', 0)
+            'port': message.get('port', 0),
+            'target_addr': self.peers[peer_id].public_addr
         }
         await self.peers[target_id].send(punch_msg)
 
