@@ -1,7 +1,12 @@
+"""
+This module contains utilities for NAT traversal and hole punching.
+"""
 import socket
 import asyncio
 import logging
 from typing import Tuple, Optional, Callable
+
+logger = logging.getLogger(__name__)
 
 class _TCPPunchProtocol(asyncio.Protocol):
     def __init__(self, on_connection: Callable):
@@ -9,7 +14,7 @@ class _TCPPunchProtocol(asyncio.Protocol):
     def connection_made(self, transport):
         self.on_connection(transport)
 
-async def tcp_hole_punch(local_host: str, local_port: int, target_host: str, target_port: int, timeout: float = 5.0) -> Optional[socket.socket]:
+async def tcp_hole_punch(local_host: str, local_port: int, target_host: str, target_port: int, timeout: float = 15.0, retries: int = 10) -> Optional[socket.socket]:
     """
     Attempt TCP hole punching by simultaneously listening and connecting.
     Returns the established socket if successful, else None.
@@ -21,42 +26,35 @@ async def tcp_hole_punch(local_host: str, local_port: int, target_host: str, tar
         if not incoming_fut.done():
             incoming_fut.set_result(transport)
 
-    server = await loop.create_server(lambda: _TCPPunchProtocol(on_incoming), local_host, local_port)
-    try:
-        # Start outgoing connection attempt
-        outgoing_task = loop.create_task(loop.create_connection(asyncio.Protocol, target_host, target_port))
-        # Wait for either incoming or outgoing connection
-        done, pending = await asyncio.wait(
-            [incoming_fut, outgoing_task],
-            timeout=timeout,
-            return_when=asyncio.FIRST_COMPLETED
-        )
-        sock = None
-        if incoming_fut in done and incoming_fut.done():
-            transport = incoming_fut.result()
-            sock = transport.get_extra_info('socket')
-        elif outgoing_task in done and outgoing_task.done():
-            transport, _ = outgoing_task.result()
-            sock = transport.get_extra_info('socket')
-        for task in pending:
-            task.cancel()
-        if sock:
-            logger.info(f"TCP hole punch successful: {sock.getsockname()} <-> {sock.getpeername()}")
-            return sock
-        logger.warning("TCP hole punch failed after all retries")
-        return None
-    finally:
-        server.close()
-        await server.wait_closed()
-"""
-This module contains utilities for NAT traversal and hole punching.
-"""
-import socket
-import asyncio
-import logging
-from typing import Tuple, Optional
-
-logger = logging.getLogger(__name__)
+    for attempt in range(retries):
+        server = await loop.create_server(lambda: _TCPPunchProtocol(on_incoming), local_host, local_port)
+        try:
+            # Start outgoing connection attempt
+            outgoing_task = loop.create_task(loop.create_connection(asyncio.Protocol, target_host, target_port))
+            # Wait for either incoming or outgoing connection
+            done, pending = await asyncio.wait(
+                [incoming_fut, outgoing_task],
+                timeout=timeout,
+                return_when=asyncio.FIRST_COMPLETED
+            )
+            sock = None
+            if incoming_fut in done and incoming_fut.done():
+                transport = incoming_fut.result()
+                sock = transport.get_extra_info('socket')
+            elif outgoing_task in done and outgoing_task.done():
+                transport, _ = outgoing_task.result()
+                sock = transport.get_extra_info('socket')
+            for task in pending:
+                task.cancel()
+            if sock:
+                logger.info(f"TCP hole punch successful: {sock.getsockname()} <-> {sock.getpeername()} (attempt {attempt+1})")
+                return sock
+            logger.warning(f"TCP hole punch attempt {attempt+1} failed")
+        finally:
+            server.close()
+            await server.wait_closed()
+    logger.warning("TCP hole punch failed after all retries")
+    return None
 
 async def create_punch_socket(host: str, port: int = 0) -> Tuple[socket.socket, int]:
     """
