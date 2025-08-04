@@ -15,7 +15,6 @@ class Client:
         self.reader: Optional[asyncio.StreamReader] = None
         self.writer: Optional[asyncio.StreamWriter] = None
         self.listen_port: Optional[int] = None
-        self.tcp_server_task: Optional[asyncio.Task] = None
 
     async def start(self):
         """Start the client and connect to the server."""
@@ -49,12 +48,8 @@ class Client:
         if response and response.get('type') == 'register_ack':
             self.peer_id = response.get('peer_id')
             logger.info(f"Registered with server, assigned ID: {self.peer_id}")
-            # Extract and store the assigned port
             ip, port = self.peer_id.split(":")
             self.listen_port = int(port)
-            # Start background TCP server only once
-            if not self.tcp_server_task:
-                self.tcp_server_task = asyncio.create_task(self._background_tcp_server(self.listen_port))
         else:
             raise Exception("Failed to register with server")
 
@@ -145,7 +140,6 @@ class Client:
         peer_ip, peer_port = target_addr
         logger.info(f"Received punch request from {peer_id} at {peer_ip}:{peer_port} (TCP)")
         from .nat import tcp_hole_punch
-        # Always use self.listen_port for both local and remote
         if self.listen_port is None:
             logger.error("No listen_port set for TCP hole punching!")
             return
@@ -154,13 +148,6 @@ class Client:
             logger.info(f"TCP hole punch successful: {sock.getsockname()} <-> {sock.getpeername()}")
         else:
             logger.warning("TCP hole punch failed after all retries")
-
-    async def _background_tcp_server(self, port: int):
-        """Run a simple TCP server for incoming hole punch connections."""
-        server = await asyncio.start_server(lambda r, w: None, '0.0.0.0', port)
-        logger.info(f"Background TCP server listening on port {port} for hole punching.")
-        async with server:
-            await server.serve_forever()
 
     async def _send_to_server(self, message: dict):
         """Send a message to the server."""
