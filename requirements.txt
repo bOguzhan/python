@@ -1,0 +1,4 @@
+asyncio>=3.4.3
+socket>=3.0.0
+argparse>=1.4.0
+pytest>=7.0.0
